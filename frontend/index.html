@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HoaPhat Store Managment | Bán Hàng Trực Tiếp</title>
+    <!-- Nhúng Font Roboto và Icon Material 3 trực tiếp từ Google -->
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="css/style.css?v=1.1">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar elevation-2">
+            <div class="sidebar-header">
+                <span class="material-symbols-rounded logo-icon">storefront</span>
+                <h2>HoaPhat Store Managment</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" onclick="switchTab('pos', this)">
+                    <span class="material-symbols-rounded">point_of_sale</span> Bán Hàng (POS)
+                </a>
+                <a href="#" class="nav-item" onclick="switchTab('inventory', this)">
+                    <span class="material-symbols-rounded">inventory_2</span> Tồn Kho
+                </a>
+                <a href="#" class="nav-item" onclick="switchTab('invoices', this)">
+                    <span class="material-symbols-rounded">receipt_long</span> Hóa Đơn
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            <!-- App Bar -->
+            <header class="app-bar elevation-1">
+                <div class="search-bar">
+                    <span class="material-symbols-rounded">search</span>
+                    <input type="text" placeholder="Tìm kiếm mặt hàng, hóa đơn...">
+                </div>
+                <div class="user-profile">
+                    <span class="material-symbols-rounded" style="cursor: pointer; color:#5f6368;">notifications</span>
+                    <div class="avatar elevation-1">AD</div>
+                    <span class="username" style="font-weight: 500;">Admin</span>
+                </div>
+            </header>
+
+            <!-- Bỏ Dashboard View theo yêu cầu -->
+
+            <!-- POS View -->
+            <div id="pos-view" class="view-section active">
+                <div class="pos-layout">
+                    <!-- Products Area -->
+                    <div class="products-area">
+                        <h2 class="section-title">Danh mục Sản phẩm</h2>
+                        <div class="category-tabs">
+                            <button class="md-chip active">Tất cả</button>
+                            <button class="md-chip">Thực phẩm</button>
+                            <button class="md-chip">Đồ gia dụng</button>
+                        </div>
+                        <!-- Nơi JS sẽ render các thẻ sản phẩm -->
+                        <div class="products-grid" id="products-grid"></div>
+                    </div>
+
+                    <!-- Cart Sidebar -->
+                    <div class="cart-sidebar elevation-3">
+                        <div class="cart-header">
+                            <h2>Giỏ hàng hiện tại</h2>
+                            <span class="material-symbols-rounded btn-icon" onclick="clearCart()"
+                                title="Xóa toàn bộ">delete</span>
+                        </div>
+                        <div class="cart-items" id="cart-items">
+                            <div class="empty-cart-msg">
+                                <span class="material-symbols-rounded"
+                                    style="font-size: 48px; opacity: 0.3;">shopping_basket</span>
+                                <p style="margin-top: 10px;">Chưa chọn sản phẩm nào</p>
+                            </div>
+                        </div>
+                        <div class="cart-summary">
+                            <div class="summary-row">
+                                <span>Tạm tính</span>
+                                <span id="summary-subtotal">0 ₫</span>
+                            </div>
+                            <div class="summary-row">
+                                <span>Thuế (10%)</span>
+                                <span id="summary-tax">0 ₫</span>
+                            </div>
+                            <div class="summary-row total-row">
+                                <span>Tổng cộng</span>
+                                <span id="summary-total" style="color: var(--md-primary);">0 ₫</span>
+                            </div>
+                            <button class="md-button primary full-width" onclick="checkout()">
+                                <span class="material-symbols-rounded">credit_card</span>
+                                Xác nhận thanh toán
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Inventory View -->
+            <div id="inventory-view" class="view-section" style="padding: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h1 class="page-title" style="margin-bottom: 0;">Quản lý Tồn Kho</h1>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="md-button" style="background: rgba(98,0,234,0.1); color: var(--md-primary); padding: 12px 20px; border-radius: var(--radius-md);" onclick="openAddProductModal()">
+                            <span class="material-symbols-rounded">add</span> Thêm Mới
+                        </button>
+                        <button class="md-button primary" style="padding: 12px 20px; border-radius: var(--radius-md);" onclick="loadInventory(true)">
+                            <span class="material-symbols-rounded">refresh</span> Làm mới
+                        </button>
+                    </div>
+                </div>
+                <div class="elevation-1" style="background: white; border-radius: 12px; overflow: hidden;">
+                    <table class="md-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid #e0e0e0; background: #f8f9fa;">
+                                <th style="padding: 16px; font-weight: 500; color: #5f6368;">Mã SKU</th>
+                                <th style="padding: 16px; font-weight: 500; color: #5f6368;">Tên Sản Phẩm</th>
+                                <th style="padding: 16px; font-weight: 500; color: #5f6368;">Giá Bán</th>
+                                <th style="padding: 16px; font-weight: 500; color: #5f6368;">Tồn Kho</th>
+                                <th style="padding: 16px; font-weight: 500; color: #5f6368;">Trạng Thái</th>
+                            </tr>
+                        </thead>
+                        <tbody id="inventory-tbody">
+                            <!-- JS render here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Invoices View -->
+            <div id="invoices-view" class="view-section" style="padding: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h1 class="page-title" style="margin-bottom: 0;">Lịch sử Hóa Đơn</h1>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="md-button" style="background: transparent; color: #d32f2f; padding: 12px 20px; border: 1px solid #d32f2f; border-radius: var(--radius-md);" onclick="clearAllInvoices()">
+                            <span class="material-symbols-rounded">delete_sweep</span> Xóa tất cả
+                        </button>
+                        <button class="md-button primary" style="padding: 12px 20px; border-radius: var(--radius-md);" onclick="loadInvoices(true)">
+                            <span class="material-symbols-rounded">refresh</span> Làm mới
+                        </button>
+                    </div>
+                </div>
+                <div class="elevation-1" style="background: white; border-radius: 12px; overflow: hidden;">
+                    <table class="md-table" style="width: 100%; border-collapse: collapse; text-align: left;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid #e0e0e0; background: #f8f9fa;">
+                                <th style="padding: 16px; font-weight: 500; color: #5f6368;">Mã HD</th>
+                                <th style="padding: 16px; font-weight: 500; color: #5f6368;">Thời Gian Tạo</th>
+                                <th style="padding: 16px; font-weight: 500; color: #5f6368;">Sản Phẩm</th>
+                                <th style="padding: 16px; font-weight: 500; color: #5f6368;">Tổng Tiền</th>
+                                <th style="padding: 16px; font-weight: 500; color: #5f6368;">Trạng Thái</th>
+                            </tr>
+                        </thead>
+                        <tbody id="invoices-tbody">
+                            <!-- JS render here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Add Product Modal -->
+    <div id="add-product-modal" class="modal-overlay">
+        <div class="modal-content elevation-3">
+            <div class="modal-header">
+                <h2>Thêm Mặt Hàng Mới</h2>
+                <span class="material-symbols-rounded close-btn" onclick="closeAddProductModal()">close</span>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Tên Mặt Hàng</label>
+                    <input type="text" id="new-product-name" class="md-input" placeholder="Ví dụ: Nước giải khát">
+                </div>
+                <div class="form-group">
+                    <label>Giá Bán (VNĐ)</label>
+                    <input type="number" id="new-product-price" class="md-input" placeholder="Ví dụ: 15000" min="0">
+                </div>
+                <div class="form-group">
+                    <label>Số Lượng Khởi Tạo</label>
+                    <input type="number" id="new-product-quantity" class="md-input" placeholder="Ví dụ: 50" min="0">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="md-button" onclick="closeAddProductModal()" style="background: transparent; color: var(--md-text-secondary); margin-right: 12px;">Hủy</button>
+                <button class="md-button primary" onclick="submitNewProduct()">Đăng Ký</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Invoice Details Modal -->
+    <div id="invoice-details-modal" class="modal-overlay">
+        <div class="modal-content elevation-3" style="width: 600px;">
+            <div class="modal-header">
+                <h2 id="detail-invoice-id">Chi Tiết Hóa Đơn #</h2>
+                <span class="material-symbols-rounded close-btn" onclick="closeInvoiceDetailsModal()">close</span>
+            </div>
+            <div class="modal-body">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 20px; color: #5f6368;">
+                    <span id="detail-invoice-date">Ngày tạo: </span>
+                    <span id="detail-invoice-method">Thanh toán: </span>
+                </div>
+                <table class="md-table" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="background: #f8f9fa;">
+                            <th style="padding: 12px; border-bottom: 1px solid #eee;">Sản phẩm</th>
+                            <th style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">Đơn giá</th>
+                            <th style="padding: 12px; border-bottom: 1px solid #eee; text-align: center;">SL</th>
+                            <th style="padding: 12px; border-bottom: 1px solid #eee; text-align: right;">Thành tiền</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detail-invoice-items">
+                        <!-- Items will be injected here -->
+                    </tbody>
+                </table>
+                <div style="margin-top: 20px; border-top: 2px dashed #eee; padding-top: 15px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span>Tổng tiền hàng:</span>
+                        <span id="detail-total-amount">0 đ</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px; color: #d32f2f;">
+                        <span>Giảm giá:</span>
+                        <span id="detail-discount">- 0 đ</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 10px; font-size: 1.2em; font-weight: bold; color: var(--md-primary);">
+                        <span>TỔNG CỘNG:</span>
+                        <span id="detail-final-amount">0 đ</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="md-button primary" onclick="closeInvoiceDetailsModal()">Đã Hiểu</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Material Design Snackbar (Toast Message) -->
+    <div id="snackbar" class="snackbar elevation-3"></div>
+
+    <script src="js/app.js?v=5"></script>
+</body>
+
+</html>
