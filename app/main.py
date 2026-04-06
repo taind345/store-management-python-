@@ -1,7 +1,5 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-import os
 from sqlalchemy.ext.asyncio import AsyncSession
 from contextlib import asynccontextmanager
 from typing import List
@@ -83,6 +81,7 @@ async def restock_inventory_endpoint(
     """Nhập thêm số lượng tồn kho cho mặt hàng"""
     return await crud.restock_inventory(db=db, product_id=product_id, quantity=restock_data.quantity, user_id=current_user_id)
 
-# Phục vụ giao diện Frontend ở đường dẫn gốc (Root)
-frontend_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "frontend")
-app.mount("/", StaticFiles(directory=frontend_path, html=True), name="frontend")
+
+# NOTE: Frontend hiện được serve bởi NiceGUI (xem frontend_python/ui_app.py)
+# Chạy ứng dụng bằng: python run.py
+
