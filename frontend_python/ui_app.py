@@ -1,289 +1,12 @@
 """
 HoaPhat Store Management - NiceGUI Frontend
-Thay thế hoàn toàn HTML/CSS/JS bằng Python, giữ nguyên giao diện Material Design 3.
+Giao diện thuần Python sử dụng Component của NiceGUI & Tailwind, phong cách Claude Aesthetic.
 """
 from nicegui import ui, app
 from app.database import AsyncSessionLocal
 from app import crud, schemas
 from decimal import Decimal
-import html as html_module
-
-
-def el(tag: str, text: str = '', classes: str = '', style: str = ''):
-    """Helper: Tạo ui.element với text content (thay cho .text() không hỗ trợ)"""
-    e = ui.element(tag)
-    if classes:
-        e.classes(classes)
-    if style:
-        e.style(style)
-    if text:
-        e._text = text
-    return e
-
-# ============================================================
-# CSS: Inject nguyên văn style.css hiện tại + Google Fonts
-# ============================================================
-CUSTOM_CSS = """
-:root {
-    --md-primary: #6200ea;
-    --md-primary-hover: #4a00b0;
-    --md-background: #f8f9fa;
-    --md-surface: #ffffff;
-    --md-error: #b00020;
-    --md-text-primary: rgba(0, 0, 0, 0.87);
-    --md-text-secondary: rgba(0, 0, 0, 0.6);
-    --md-divider: rgba(0, 0, 0, 0.08);
-    --radius-md: 12px;
-    --radius-lg: 16px;
-    --radius-xl: 24px;
-    --transition-standard: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-}
-/* Reset & Fullscreen */
-html, body { height: 100vh; width: 100vw; margin: 0; padding: 0; overflow: hidden; }
-body { background-color: var(--md-background); color: var(--md-text-primary); font-family: 'Roboto', sans-serif; }
-* { margin: 0; padding: 0; box-sizing: border-box; }
-
-/* Bảo vệ Icons không bị ghi đè font */
-.material-symbols-rounded {
-    font-family: 'Material Symbols Rounded' !important;
-    font-weight: normal;
-    font-style: normal;
-    font-size: 24px;
-    line-height: 1;
-    letter-spacing: normal;
-    text-transform: none;
-    display: inline-block;
-    white-space: nowrap;
-    word-wrap: normal;
-    direction: ltr;
-    -webkit-font-smoothing: antialiased;
-}
-
-/* Ép giao diện lấp đầy toàn màn hình, xóa bỏ các giới hạn max-width của Quasar/NiceGUI */
-.nicegui-content { padding: 0 !important; width: 100% !important; max-width: 100% !important; }
-.q-page-container { padding: 0 !important; width: 100% !important; max-width: 100% !important; }
-.q-layout { min-height: 100vh !important; width: 100% !important; }
-.q-page { padding: 0 !important; min-height: 100vh !important; width: 100% !important; display: flex !important; }
-.q-header, .q-footer { display: none !important; }
-
-.app-container { display: flex; width: 100vw; height: 100vh; overflow: hidden; }
-
-/* Sidebar */
-.sidebar { width: 280px; min-width: 280px; background-color: var(--md-surface); display: flex; flex-direction: column; z-index: 10; border-right: 1px solid var(--md-divider); }
-q-footer { display: none !important; }
-
-/* Material Elevations */
-.elevation-1 { box-shadow: 0px 2px 4px rgba(0,0,0,0.06), 0px 4px 6px rgba(0,0,0,0.04); }
-.elevation-2 { box-shadow: 0px 4px 8px rgba(0,0,0,0.08), 0px 8px 16px rgba(0,0,0,0.06); }
-.elevation-3 { box-shadow: 0px 10px 20px rgba(0,0,0,0.1), 0px 16px 32px rgba(0,0,0,0.08); }
-
-.app-container { display: flex; height: 100vh; }
-
-/* Sidebar */
-.sidebar { width: 260px; background-color: var(--md-surface); display: flex; flex-direction: column; z-index: 10; }
-.sidebar-header { height: 72px; display: flex; align-items: center; padding: 0 24px; border-bottom: 1px solid var(--md-divider); }
-.logo-icon { color: var(--md-primary); font-size: 32px; margin-right: 12px; }
-.sidebar-header h2 { font-size: 20px; font-weight: 700; letter-spacing: 0.5px; }
-.sidebar-nav { padding: 24px 12px; display: flex; flex-direction: column; gap: 8px; }
-.nav-item {
-    display: flex; align-items: center;
-    padding: 14px 16px; text-decoration: none; color: var(--md-text-secondary);
-    border-radius: var(--radius-md); font-weight: 500; font-size: 15px;
-    transition: var(--transition-standard); cursor: pointer; border: none; background: none; width: 100%; text-align: left;
-}
-.nav-item:hover { background-color: rgba(98, 0, 234, 0.04); color: var(--md-primary); }
-.nav-item.active { background-color: rgba(98, 0, 234, 0.1); color: var(--md-primary); }
-.nav-item .material-symbols-rounded { margin-right: 16px; font-size: 22px; }
-
-/* Main Content */
-.main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-
-/* App Bar */
-.app-bar {
-    height: 72px; background-color: var(--md-surface);
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 0 32px; z-index: 5;
-}
-.search-bar {
-    display: flex; align-items: center; background-color: var(--md-background);
-    border-radius: var(--radius-xl); padding: 10px 20px; width: 480px;
-    transition: var(--transition-standard);
-}
-.search-bar:focus-within { background-color: #fff; box-shadow: 0 0 0 2px var(--md-primary); }
-.search-bar input {
-    border: none; background: transparent; margin-left: 12px;
-    outline: none; width: 100%; font-size: 15px; color: var(--md-text-primary);
-}
-.user-profile { display: flex; align-items: center; gap: 16px; }
-.avatar {
-    width: 40px; height: 40px; border-radius: 50%;
-    background: linear-gradient(135deg, var(--md-primary), #8e24aa);
-    color: white; display: flex; justify-content: center; align-items: center;
-    font-weight: 700; font-size: 14px; cursor: pointer;
-}
-
-/* View Section */
-.view-section { padding: 32px; flex: 1; overflow-y: auto; display: none; }
-.view-section.active { display: block; }
-.page-title { font-size: 28px; font-weight: 700; margin-bottom: 24px; color: var(--md-text-primary); }
-
-/* POS Layout */
-.pos-layout { display: flex; gap: 32px; height: 100%; }
-.products-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-.section-title { font-size: 22px; font-weight: 700; margin-bottom: 20px; }
-.category-tabs { display: flex; gap: 12px; margin-bottom: 24px; }
-
-.md-chip {
-    padding: 8px 20px; border: 1px solid var(--md-divider);
-    border-radius: 32px; background: var(--md-surface);
-    color: var(--md-text-secondary); font-weight: 500; font-size: 14px;
-    cursor: pointer; transition: var(--transition-standard);
-}
-.md-chip:hover { border-color: rgba(0,0,0,0.2); color: var(--md-text-primary); }
-.md-chip.active {
-    background: var(--md-primary); color: white; border-color: var(--md-primary);
-    box-shadow: 0 4px 8px rgba(98, 0, 234, 0.3);
-}
-
-/* Product Grid */
-.products-grid {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
-    gap: 24px; overflow-y: auto; padding-bottom: 32px; align-content: start;
-    padding-right: 8px; flex: 1;
-}
-.products-grid::-webkit-scrollbar { width: 6px; }
-.products-grid::-webkit-scrollbar-thumb { background: #ccc; border-radius: 10px; }
-
-.product-card {
-    background: var(--md-surface); border-radius: var(--radius-lg);
-    overflow: hidden; cursor: pointer; transition: var(--transition-standard);
-    border: 1px solid transparent; display: flex; flex-direction: column; min-height: 280px;
-}
-.product-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 12px 24px rgba(0,0,0,0.1);
-    border-color: rgba(98, 0, 234, 0.2);
-}
-.product-card.out-of-stock { opacity: 0.5; }
-
-.product-img {
-    height: 160px; background-color: #f1f3f4;
-    display: flex; justify-content: center; align-items: center; color: var(--md-text-secondary);
-    flex-shrink: 0;
-}
-.product-img .material-symbols-rounded { font-size: 64px; opacity: 0.2; }
-
-.product-info { padding: 16px; flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
-.product-name {
-    font-size: 16px; font-weight: 500; margin-bottom: 8px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--md-text-primary);
-}
-.product-price { color: var(--md-primary); font-weight: 700; font-size: 18px; }
-
-/* Cart Sidebar */
-.cart-sidebar {
-    width: 420px; background: var(--md-surface); border-radius: var(--radius-lg);
-    display: flex; flex-direction: column; overflow: hidden; height: 100%;
-}
-.cart-header {
-    padding: 24px; border-bottom: 1px solid var(--md-divider);
-    display: flex; justify-content: space-between; align-items: center;
-}
-.cart-header h2 { font-size: 22px; font-weight: 700; }
-.btn-icon {
-    cursor: pointer; color: var(--md-text-secondary); padding: 8px; border-radius: 50%;
-    transition: var(--transition-standard); background: var(--md-background);
-    border: none; display: flex; align-items: center; justify-content: center;
-}
-.btn-icon:hover { background: #ffebee; color: var(--md-error); }
-
-.cart-items { flex: 1; overflow-y: auto; padding: 24px; }
-.empty-cart-msg { text-align: center; color: var(--md-text-secondary); margin-top: 60px; font-weight: 500; }
-
-.cart-item {
-    display: flex; align-items: center; padding: 16px;
-    background: var(--md-background); border-radius: var(--radius-md); margin-bottom: 16px;
-}
-.item-visual { width: 56px; height: 56px; border-radius: 12px; background: #e0e0e0; display: flex; justify-content: center; align-items: center; margin-right: 16px; }
-.item-details { flex: 1; }
-.item-name { font-weight: 500; font-size: 15px; margin-bottom: 4px; }
-.item-price { color: var(--md-primary); font-weight: 700; font-size: 14px; }
-
-.item-actions { display: flex; align-items: center; gap: 12px; }
-.qty-btn {
-    width: 32px; height: 32px; border-radius: 50%; border: none; background: white;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; justify-content: center; align-items: center;
-    cursor: pointer; font-size: 18px; color: var(--md-text-primary);
-}
-.qty-btn:hover { background: #f1f3f4; }
-
-.cart-summary { padding: 32px 24px; background: var(--md-surface); border-top: 1px solid var(--md-divider); }
-.summary-row { display: flex; justify-content: space-between; margin-bottom: 16px; color: var(--md-text-secondary); font-size: 16px; }
-.total-row { font-size: 24px; font-weight: 700; color: var(--md-text-primary); margin: 24px 0 32px; padding-top: 24px; border-top: 2px dashed var(--md-divider); }
-
-.md-button {
-    border: none; border-radius: var(--radius-lg); padding: 18px 32px;
-    font-size: 16px; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; gap: 12px;
-    transition: var(--transition-standard); text-transform: uppercase; letter-spacing: 1px;
-}
-.md-button.primary { background: linear-gradient(to right, var(--md-primary), #8e24aa); color: white; box-shadow: 0 6px 12px rgba(98, 0, 234, 0.3); }
-.md-button.primary:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(98, 0, 234, 0.4); }
-.full-width { width: 100%; }
-
-/* Table styles for Inventory & Invoices */
-.md-table { width: 100%; border-collapse: collapse; text-align: left; }
-.md-table th { padding: 16px; font-weight: 500; color: #5f6368; border-bottom: 1px solid #e0e0e0; background: #f8f9fa; }
-.md-table td { padding: 16px; border-bottom: 1px solid #e0e0e0; }
-.md-table tr:hover { background: rgba(98, 0, 234, 0.02); }
-
-/* Restock/action buttons in tables */
-.action-btn {
-    padding: 6px 16px; font-size: 13px; background: rgba(98,0,234,0.1); color: var(--md-primary);
-    border: none; border-radius: var(--radius-md); cursor: pointer; font-weight: 500;
-    transition: var(--transition-standard);
-}
-.action-btn:hover { background: rgba(98,0,234,0.2); }
-
-.status-chip {
-    padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 500;
-    display: inline-block;
-}
-.status-chip.success { background: #e8f5e9; color: #2e7d32; }
-.status-chip.danger { background: #ffebee; color: #d32f2f; }
-
-/* Header buttons panel */
-.header-actions { display: flex; gap: 12px; }
-.header-btn {
-    padding: 12px 20px; border-radius: var(--radius-md); border: none; cursor: pointer;
-    font-weight: 500; font-size: 14px; display: flex; align-items: center; gap: 8px;
-    transition: var(--transition-standard);
-}
-.header-btn.primary { background: linear-gradient(to right, var(--md-primary), #8e24aa); color: white; box-shadow: 0 4px 8px rgba(98,0,234,0.3); }
-.header-btn.primary:hover { transform: translateY(-1px); box-shadow: 0 6px 12px rgba(98,0,234,0.4); }
-.header-btn.secondary { background: rgba(98,0,234,0.1); color: var(--md-primary); }
-.header-btn.secondary:hover { background: rgba(98,0,234,0.15); }
-.header-btn.danger { background: transparent; color: #d32f2f; border: 1px solid #d32f2f; }
-.header-btn.danger:hover { background: rgba(211,47,47,0.05); }
-
-/* Modal/Dialog overrides for NiceGUI */
-.q-dialog__backdrop { background: rgba(0,0,0,0.4) !important; }
-.custom-dialog { border-radius: var(--radius-xl) !important; }
-.custom-dialog .q-card { box-shadow: 0px 10px 20px rgba(0,0,0,0.1), 0px 16px 32px rgba(0,0,0,0.08) !important; border-radius: var(--radius-xl) !important; }
-
-/* Form */
-.form-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
-.form-group label { font-size: 14px; font-weight: 500; color: var(--md-text-secondary); }
-
-/* Invoice detail table */
-.detail-table { width: 100%; border-collapse: collapse; }
-.detail-table th { padding: 12px; border-bottom: 1px solid #eee; background: #f8f9fa; font-weight: 500; color: #5f6368; }
-.detail-table td { padding: 12px; border-bottom: 1px solid #eee; }
-
-/* Stock indicator */
-.stock-indicator { font-size: 11px; margin-top: 4px; font-weight: bold; }
-.stock-indicator.in-stock { color: #4caf50; }
-.stock-indicator.out-of-stock { color: #e53935; }
-"""
+import datetime
 
 # ============================================================
 # Helper: Format tiền VND
@@ -297,34 +20,42 @@ def format_currency(amount) -> str:
     return f"{val:,.0f} ₫".replace(",", ".")
 
 
-# ============================================================
-# Main Page
-# ============================================================
 def setup_pages():
     """Đăng ký tất cả các trang NiceGUI"""
 
     @ui.page('/')
     async def main_page():
-        # --- Theme Config ---
-        ui.colors(primary='#6200ea', secondary='#8e24aa', accent='#9c27b0')
+        # --- Theme Config (Claude Aesthetic: Cream/Earth Tones) ---
+        ui.colors(primary='#d97757', secondary='#8b7355', accent='#e8dcca')
 
-        # --- Inject fonts & CSS ---
+        # --- Inject Google Fonts & Base Overrides ---
         ui.add_head_html('''
-            <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+            <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
             <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+            <style>
+                body { font-family: 'Inter', sans-serif; }
+                /* Minimal scrollbar */
+                ::-webkit-scrollbar { width: 6px; height: 6px; }
+                ::-webkit-scrollbar-track { background: transparent; }
+                ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 10px; }
+                .dark ::-webkit-scrollbar-thumb { background: #4b5563; }
+                
+                .nicegui-content { padding: 0 !important; max-width: 100% !important; width: 100% !important; }
+            </style>
         ''')
-        ui.add_css(CUSTOM_CSS)
 
         # --- State ---
         cart = []
         current_tab = {'value': 'pos'}
         products_db = []
         invoices_data = []
+        search_query = {'text': ''}
 
-        # --- Refs cho các view sections ---
+        # --- View Refs ---
         pos_view_ref = None
         inv_view_ref = None
         invoices_view_ref = None
+        nav_buttons = []
 
         # ========================================
         # DATA FUNCTIONS
@@ -346,35 +77,26 @@ def setup_pages():
         # ========================================
         def switch_tab(tab_id):
             current_tab['value'] = tab_id
-            # Toggle active class on nav items
+            
+            # Active states cho Sidebar (đổi class màu nền)
             for btn in nav_buttons:
                 if btn['id'] == tab_id:
-                    btn['element'].classes(add='active')
+                    btn['element'].classes(replace='w-full justify-start py-3 px-4 rounded-xl text-[15px] font-medium transition-colors bg-orange-50/80 text-primary dark:bg-gray-800 dark:text-gray-200')
                 else:
-                    btn['element'].classes(remove='active')
+                    btn['element'].classes(replace='w-full justify-start py-3 px-4 rounded-xl text-[15px] font-medium transition-colors text-gray-600 dark:text-gray-400 hover:bg-orange-50/50 dark:hover:bg-gray-800/50')
+            
             # Toggle view visibility
             if pos_view_ref:
-                if tab_id == 'pos':
-                    pos_view_ref.style('display: block')
-                else:
-                    pos_view_ref.style('display: none')
+                pos_view_ref.classes(replace='w-full h-full p-8 gap-8 grid grid-cols-[1fr_390px]' if tab_id == 'pos' else 'hidden')
             if inv_view_ref:
-                if tab_id == 'inventory':
-                    inv_view_ref.style('display: block')
-                else:
-                    inv_view_ref.style('display: none')
+                inv_view_ref.classes(replace='w-full h-full p-8 flex flex-col' if tab_id == 'inventory' else 'hidden')
             if invoices_view_ref:
-                if tab_id == 'invoices':
-                    invoices_view_ref.style('display: block')
-                else:
-                    invoices_view_ref.style('display: none')
-            # Auto-refresh data
-            if tab_id == 'inventory':
-                refresh_inventory()
-            elif tab_id == 'invoices':
-                refresh_invoices()
-            elif tab_id == 'pos':
-                refresh_products()
+                invoices_view_ref.classes(replace='w-full h-full p-8 flex flex-col' if tab_id == 'invoices' else 'hidden')
+            
+            # Auto-refresh
+            if tab_id == 'inventory': refresh_inventory()
+            elif tab_id == 'invoices': refresh_invoices()
+            elif tab_id == 'pos': refresh_products()
 
         # ========================================
         # CART LOGIC
@@ -382,7 +104,7 @@ def setup_pages():
         def add_to_cart(product):
             existing = next((item for item in cart if item['product_id'] == product.id), None)
             if product.stock_quantity <= 0:
-                ui.notify(f'Sản phẩm {product.name} đã hết hàng!', color='negative')
+                ui.notify(f'Sản phẩm {product.name} đã hết hàng!', type='negative')
                 return
             if existing:
                 existing['quantity'] += 1
@@ -394,7 +116,7 @@ def setup_pages():
                     'quantity': 1
                 })
             refresh_cart()
-            ui.notify(f'Đã thêm {product.name} vào giỏ', color='positive')
+            ui.notify(f'Đã thêm {product.name} vào giỏ', type='positive')
 
         def update_quantity(product_id, delta):
             idx = next((i for i, item in enumerate(cart) if item['product_id'] == product_id), -1)
@@ -408,11 +130,11 @@ def setup_pages():
             if len(cart) > 0:
                 cart.clear()
                 refresh_cart()
-                ui.notify('Đã xóa giỏ hàng', color='warning')
+                ui.notify('Đã xóa giỏ hàng', type='warning')
 
         async def checkout():
             if len(cart) == 0:
-                ui.notify('Không thể thanh toán, giỏ hàng đang trống!', color='negative')
+                ui.notify('Không thể thanh toán, giỏ hàng đang trống!', type='negative')
                 return
             order_data = schemas.OrderCreate(
                 customer_id=None,
@@ -424,177 +146,155 @@ def setup_pages():
             try:
                 async with AsyncSessionLocal() as db:
                     result = await crud.create_order(db=db, order_data=order_data, user_id=1)
-                ui.notify(f'🎉 Thanh toán Thành Công! Tạo Đơn Số #{result.id}', color='positive')
+                ui.notify(f'🎉 Thanh toán Thành Công! Tạo Đơn Số #{result.id}', type='positive')
                 cart.clear()
                 refresh_cart()
                 refresh_products()
             except Exception as e:
-                detail = str(e)
-                if hasattr(e, 'detail'):
-                    detail = e.detail
-                ui.notify(f'Lỗi: {detail}', color='negative')
+                ui.notify(f'Lỗi: {getattr(e, "detail", str(e))}', type='negative')
 
         # ========================================
-        # INVENTORY ACTIONS
+        # INVENTORY ACTIONS & MODALS
         # ========================================
         async def restock_product(product_id, product_name):
-            with ui.dialog() as dialog, ui.card().style('border-radius: 24px; padding: 24px; min-width: 380px;'):
-                ui.label(f'📦 Nhập hàng: {product_name}').style('font-size: 18px; font-weight: 700; margin-bottom: 20px;')
+            with ui.dialog() as dialog, ui.card().classes('rounded-3xl p-6 bg-white dark:bg-[#252527] w-[400px] border border-gray-100 dark:border-gray-800 shadow-xl'):
+                ui.label(f'📦 Nhập hàng: {product_name}').classes('text-xl font-bold mb-4 dark:text-gray-100')
                 
-                with ui.column().classes('w-full gap-1'):
-                    ui.label('Số lượng nhập thêm').style('font-weight: 600; color: var(--md-text-secondary); margin-left: 4px;')
-                    qty_input = ui.input(placeholder='Ví dụ: 10').props('outlined type=number').classes('w-full').style('font-size: 16px;')
-                    qty_input.value = 10
-                with ui.row().style('justify-content: flex-end; gap: 12px; margin-top: 16px; width: 100%;'):
-                    ui.button('Hủy', on_click=dialog.close).props('flat').style('color: var(--md-text-secondary);')
+                with ui.column().classes('w-full gap-1 mb-6'):
+                    ui.label('Số lượng nhập thêm').classes('font-medium text-gray-500 dark:text-gray-400 ml-1 text-sm')
+                    qty_input = ui.number(value=10, format='%.0f').props('outlined').classes('w-full')
+                
+                with ui.row().classes('justify-end gap-3 w-full'):
+                    ui.button('Hủy', on_click=dialog.close).props('flat text-color="grey-6" no-caps').classes('font-medium')
+                    
                     async def do_restock():
-                        qty = int(qty_input.value)
+                        qty = int(qty_input.value or 0)
                         if qty <= 0:
-                            ui.notify('Số lượng không hợp lệ!', color='negative')
+                            ui.notify('Số lượng không hợp lệ!', type='negative')
                             return
                         try:
                             async with AsyncSessionLocal() as db:
                                 await crud.restock_inventory(db=db, product_id=product_id, quantity=qty, user_id=1)
-                            ui.notify(f'Đã nhập thêm +{qty} cho {product_name}!', color='positive')
+                            ui.notify(f'Đã nhập thêm +{qty} cho {product_name}!', type='positive')
                             dialog.close()
                             refresh_inventory()
                         except Exception as e:
-                            detail = str(e)
-                            if hasattr(e, 'detail'):
-                                detail = e.detail
-                            ui.notify(f'Lỗi: {detail}', color='negative')
-                    ui.button('Xác nhận', on_click=do_restock).style(
-                        'background: linear-gradient(to right, var(--md-primary), #8e24aa); color: white; '
-                        'border-radius: 12px; padding: 10px 24px; font-weight: 600;'
-                    )
+                            ui.notify(f'Lỗi: {getattr(e, "detail", str(e))}', type='negative')
+                    
+                    ui.button('Xác nhận', on_click=do_restock).props('unelevated no-caps').classes('bg-primary text-white font-semibold rounded-xl px-6')
             dialog.open()
 
         async def open_add_product_modal():
-            with ui.dialog() as dialog, ui.card().style('border-radius: 24px; padding: 0; width: 500px; max-width: 95vw; overflow: hidden;'):
-                # Header
-                with ui.element('div').classes('w-full').style('padding: 24px; border-bottom: 1px solid var(--md-divider); display: flex; justify-content: space-between; align-items: center;'):
-                    ui.label('Thêm Mặt Hàng Mới').style('font-size: 20px; font-weight: 700;')
-                    ui.button(icon='close', on_click=dialog.close).props('flat round dense').style('color: var(--md-text-secondary);')
-                # Body
-                with ui.element('div').classes('w-full items-stretch column gap-5').style('padding: 24px;'):
-                    # Field 1
+            with ui.dialog() as dialog, ui.card().classes('rounded-3xl p-0 bg-white dark:bg-[#252527] w-[500px] border border-gray-100 dark:border-gray-800 shadow-xl'):
+                with ui.row().classes('w-full p-6 border-b border-gray-100 dark:border-gray-800 justify-between items-center'):
+                    ui.label('Thêm Mặt Hàng Mới').classes('text-xl font-bold dark:text-gray-100')
+                    ui.button(icon='close', on_click=dialog.close).props('flat round dense').classes('text-gray-400')
+                
+                with ui.column().classes('w-full p-6 gap-5 bg-[#fafafa]/50 dark:bg-transparent'):
                     with ui.column().classes('w-full gap-1'):
-                        ui.label('Tên Mặt Hàng').style('font-weight: 600; color: var(--md-text-secondary); margin-left: 4px;')
-                        name_input = ui.input(placeholder='Ví dụ: Nước giải khát').props('outlined').classes('w-full').style('font-size: 16px;')
+                        ui.label('Tên Mặt Hàng').classes('font-medium text-gray-500 dark:text-gray-400 ml-1 text-sm')
+                        name_input = ui.input(placeholder='Ví dụ: Nước giải khát').props('outlined').classes('w-full')
+                    with ui.column().classes('w-full gap-1'):
+                        ui.label('Giá Bán (VNĐ)').classes('font-medium text-gray-500 dark:text-gray-400 ml-1 text-sm')
+                        price_input = ui.number(placeholder='Ví dụ: 15000').props('outlined').classes('w-full')
+                    with ui.column().classes('w-full gap-1'):
+                        ui.label('Số Lượng Khởi Tạo').classes('font-medium text-gray-500 dark:text-gray-400 ml-1 text-sm')
+                        qty_input = ui.number(value=0, format='%.0f').props('outlined').classes('w-full')
+                
+                with ui.row().classes('w-full p-6 border-t border-gray-100 dark:border-gray-800 justify-end items-center gap-3 bg-gray-50/50 dark:bg-black/20'):
+                    ui.button('Hủy', on_click=dialog.close).props('flat text-color="grey-6" no-caps').classes('font-medium')
                     
-                    # Field 2
-                    with ui.column().classes('w-full gap-1'):
-                        ui.label('Giá Bán (VNĐ)').style('font-weight: 600; color: var(--md-text-secondary); margin-left: 4px;')
-                        price_input = ui.input(placeholder='Ví dụ: 15000').props('outlined type=number').classes('w-full').style('font-size: 16px;')
-                    
-                    # Field 3
-                    with ui.column().classes('w-full gap-1'):
-                        ui.label('Số Lượng Khởi Tạo').style('font-weight: 600; color: var(--md-text-secondary); margin-left: 4px;')
-                        qty_input = ui.input(placeholder='Ví dụ: 50').props('outlined type=number').classes('w-full').style('font-size: 16px;')
-                        qty_input.value = 0
-                # Footer
-                with ui.element('div').classes('w-full flex justify-end items-center').style('padding: 16px 24px; border-top: 1px solid var(--md-divider); background: #fafafa;'):
-                    ui.button('Hủy', on_click=dialog.close).props('flat').style('color: var(--md-text-secondary); margin-right: 12px;')
                     async def submit_product():
                         name = name_input.value.strip() if name_input.value else ''
                         price = price_input.value
                         quantity = qty_input.value
-                        if not name or not price or quantity is None:
-                            ui.notify('Vui lòng điền đầy đủ thông tin!', color='negative')
+                        if not name or price is None or quantity is None:
+                            ui.notify('Vui lòng điền đầy đủ thông tin!', type='warning')
                             return
                         if float(price) <= 0:
-                            ui.notify('Giá phải lớn hơn 0!', color='negative')
+                            ui.notify('Giá phải lớn hơn 0!', type='warning')
                             return
                         try:
                             product_in = schemas.ProductCreate(name=name, price=Decimal(str(price)), stock_quantity=int(quantity))
                             async with AsyncSessionLocal() as db:
                                 await crud.create_product(db=db, product_in=product_in)
-                            ui.notify(f'🎉 Đã tạo mặt hàng [{name}] thành công!', color='positive')
+                            ui.notify(f'🎉 Đã tạo mặt hàng [{name}] thành công!', type='positive')
                             dialog.close()
                             refresh_inventory()
                             refresh_products()
                         except Exception as e:
-                            detail = str(e)
-                            if hasattr(e, 'detail'):
-                                detail = e.detail
-                            ui.notify(f'Lỗi: {detail}', color='negative')
-                    ui.button('Đăng Ký', on_click=submit_product).props('elevated').style(
-                        'background: linear-gradient(to right, var(--md-primary), #8e24aa); color: white; '
-                        'border-radius: 12px; padding: 10px 32px; font-weight: 700;'
-                    )
+                            ui.notify(f'Lỗi: {getattr(e, "detail", str(e))}', type='negative')
+                            
+                    ui.button('Đăng Ký', on_click=submit_product).props('unelevated no-caps').classes('bg-primary text-white font-semibold rounded-xl px-8')
             dialog.open()
 
         # ========================================
-        # INVOICES ACTIONS
+        # INVOICES ACTIONS & MODALS
         # ========================================
         async def clear_all_invoices():
-            with ui.dialog() as dialog, ui.card().style('border-radius: 24px; padding: 24px; min-width: 400px;'):
-                ui.label('⚠️ Cảnh báo').style('font-size: 20px; font-weight: 700; color: #d32f2f; margin-bottom: 8px;')
-                ui.label('Bạn có chắc chắn muốn xóa vĩnh viễn toàn bộ lịch sử hóa đơn? Hành động này không thể hoàn tác!').style('color: var(--md-text-secondary); margin-bottom: 16px;')
-                with ui.row().style('justify-content: flex-end; gap: 12px; width: 100%;'):
-                    ui.button('Hủy', on_click=dialog.close).props('flat').style('color: var(--md-text-secondary);')
+            with ui.dialog() as dialog, ui.card().classes('rounded-3xl p-6 bg-white dark:bg-[#252527] w-[400px] border border-gray-100 dark:border-gray-800 shadow-xl'):
+                ui.label('⚠️ Cảnh báo').classes('text-xl font-bold text-red-500 mb-2')
+                ui.label('Bạn có chắc muốn xóa vĩnh viễn toàn bộ lịch sử hóa đơn? Hành động này không thể hoàn tác!').classes('text-gray-600 dark:text-gray-400 mb-6 leading-relaxed')
+                with ui.row().classes('justify-end gap-3 w-full'):
+                    ui.button('Hủy', on_click=dialog.close).props('flat text-color="grey-6" no-caps').classes('font-medium')
+                    
                     async def do_clear():
                         try:
                             async with AsyncSessionLocal() as db:
                                 await crud.clear_all_invoices(db)
-                            ui.notify('🗑 Đã xóa toàn bộ lịch sử hóa đơn!', color='warning')
+                            ui.notify('🗑 Đã xóa toàn bộ lịch sử hóa đơn!', type='warning')
                             dialog.close()
                             refresh_invoices()
                         except Exception as e:
-                            ui.notify(f'Lỗi: {str(e)}', color='negative')
-                    ui.button('Xóa tất cả', on_click=do_clear).style(
-                        'background: #d32f2f; color: white; border-radius: 12px; padding: 10px 24px; font-weight: 600;'
-                    )
+                            ui.notify(f'Lỗi: {str(e)}', type='negative')
+                            
+                    ui.button('Xóa tất cả', on_click=do_clear).props('unelevated no-caps').classes('bg-red-500 text-white font-semibold rounded-xl px-6')
             dialog.open()
 
         def show_invoice_details(order):
-            with ui.dialog() as dialog, ui.card().style('border-radius: 24px; padding: 0; width: 650px; max-width: 95vw; overflow: hidden;'):
-                # Header
-                with ui.element('div').classes('w-full').style('padding: 24px; border-bottom: 1px solid var(--md-divider); display: flex; justify-content: space-between; align-items: center;'):
-                    ui.label(f'Chi Tiết Hóa Đơn #{order.id}').style('font-size: 20px; font-weight: 700;')
-                    ui.button(icon='close', on_click=dialog.close).props('flat round dense').style('color: var(--md-text-secondary);')
-                # Body
-                with ui.element('div').classes('w-full items-stretch column').style('padding: 24px;'):
-                    # Meta info
-                    from datetime import datetime
+            with ui.dialog() as dialog, ui.card().classes('rounded-3xl p-0 bg-white dark:bg-[#252527] w-[650px] max-w-[95vw] border border-gray-100 dark:border-gray-800 shadow-xl'):
+                with ui.row().classes('w-full p-6 border-b border-gray-100 dark:border-gray-800 justify-between items-center bg-gray-50/50 dark:bg-black/20'):
+                    ui.label(f'Chi Tiết Hóa Đơn #{order.id}').classes('text-xl font-bold dark:text-gray-100')
+                    ui.button(icon='close', on_click=dialog.close).props('flat round dense').classes('text-gray-400')
+                
+                with ui.column().classes('w-full p-6 gap-0'):
                     date_str = order.created_at.strftime('%d/%m/%Y %H:%M:%S') if order.created_at else ''
-                    with ui.element('div').classes('w-full flex justify-between').style('margin-bottom: 20px; color: #5f6368;'):
+                    with ui.row().classes('w-full justify-between text-gray-500 dark:text-gray-400 mb-6 text-sm'):
                         ui.label(f'Ngày tạo: {date_str}')
                         ui.label(f'Thanh toán: {order.payment_method or "Tiền mặt"}')
-                    # Items table
-                    with ui.element('table').classes('detail-table w-full').style('border-collapse: collapse;'):
-                        with ui.element('thead'):
-                            with ui.element('tr'):
-                                el('th', 'Sản phẩm')
-                                el('th', 'Đơn giá', style='text-align: right;')
-                                el('th', 'SL', style='text-align: center;')
-                                el('th', 'Thành tiền', style='text-align: right;')
-                        with ui.element('tbody'):
-                            for item in order.items:
-                                p = next((p for p in products_db if p.id == item.product_id), None)
-                                name = p.name if p else f'SP #{item.product_id}'
-                                with ui.element('tr'):
-                                    el('td', name)
-                                    el('td', format_currency(item.unit_price), style='text-align: right;')
-                                    el('td', str(item.quantity), style='text-align: center;')
-                                    el('td', format_currency(item.subtotal), style='text-align: right; font-weight: 500;')
-                    # Summary
-                    with ui.element('div').classes('w-full').style('margin-top: 20px; border-top: 2px dashed #eee; padding-top: 15px;'):
-                        with ui.element('div').classes('w-full flex justify-between').style('margin-bottom: 5px;'):
+                    
+                    with ui.column().classes('w-full rounded-2xl border border-gray-100 dark:border-gray-800 overflow-hidden'):
+                        # Cột header
+                        with ui.row().classes('w-full bg-gray-50 dark:bg-gray-800/50 p-3 text-sm font-semibold text-gray-600 dark:text-gray-300 border-b border-gray-100 dark:border-gray-800'):
+                            ui.label('Sản phẩm').classes('flex-1')
+                            ui.label('Đơn giá').classes('w-24 text-right')
+                            ui.label('SL').classes('w-12 text-center')
+                            ui.label('Thành tiền').classes('w-32 text-right')
+                        
+                        # Data rows
+                        for idx, item in enumerate(order.items):
+                            p = next((p for p in products_db if p.id == item.product_id), None)
+                            name = p.name if p else f'SP #{item.product_id}'
+                            bg = 'bg-white dark:bg-[#252527]' if idx % 2 == 0 else 'bg-[#fafafa]/50 dark:bg-gray-800/20'
+                            with ui.row().classes(f'w-full p-3 text-sm flex-nowrap items-center {bg}'):
+                                ui.label(name).classes('flex-1 truncate dark:text-gray-200')
+                                ui.label(format_currency(item.unit_price)).classes('w-24 text-right dark:text-gray-300')
+                                ui.label(str(item.quantity)).classes('w-12 text-center font-medium dark:text-gray-300')
+                                ui.label(format_currency(item.subtotal)).classes('w-32 text-right font-semibold text-gray-800 dark:text-gray-100')
+                    
+                    with ui.column().classes('w-full mt-6 pt-6 border-t-[2px] border-dashed border-gray-200 dark:border-gray-800'):
+                        with ui.row().classes('w-full justify-between mb-2 text-gray-600 dark:text-gray-400 font-medium'):
                             ui.label('Tổng tiền hàng:')
                             ui.label(format_currency(order.total_amount))
-                        with ui.element('div').classes('w-full flex justify-between').style('margin-bottom: 5px; color: #d32f2f;'):
+                        with ui.row().classes('w-full justify-between mb-4 text-red-500 font-medium'):
                             ui.label('Giảm giá:')
                             ui.label(f'- {format_currency(order.discount)}')
-                        with ui.element('div').classes('w-full flex justify-between').style('margin-top: 10px; font-size: 1.2em; font-weight: bold; color: var(--md-primary);'):
-                            ui.label('TỔNG CỘNG:')
-                            ui.label(format_currency(order.final_amount))
-                # Footer
-                with ui.element('div').style('padding: 16px 24px; border-top: 1px solid var(--md-divider); display: flex; justify-content: flex-end; background: #fafafa;'):
-                    ui.button('Đã Hiểu', on_click=dialog.close).props('elevated').style(
-                        'background: linear-gradient(to right, var(--md-primary), #8e24aa); color: white; '
-                        'border-radius: 12px; padding: 10px 32px; font-weight: 700;'
-                    )
+                        with ui.row().classes('w-full justify-between items-center'):
+                            ui.label('TỔNG CỘNG:').classes('text-lg font-bold text-gray-500 dark:text-gray-400')
+                            ui.label(format_currency(order.final_amount)).classes('text-2xl font-bold text-primary')
+                            
+                with ui.row().classes('w-full p-5 border-t border-gray-100 dark:border-gray-800 justify-end bg-gray-50/50 dark:bg-black/20'):
+                    ui.button('Đã Hiểu', on_click=dialog.close).props('unelevated no-caps').classes('bg-primary text-white font-semibold rounded-xl px-8')
             dialog.open()
 
         # ========================================
@@ -603,245 +303,239 @@ def setup_pages():
         @ui.refreshable
         async def render_products_grid():
             await load_products_data()
-            if not products_db:
-                with ui.element('div').style('padding: 20px; color: #5f6368;'):
-                    ui.label('Không có sản phẩm nào. Hãy thêm mới!')
+            
+            sq = (search_query.get('text') or '').strip().lower()
+            filtered_products = [p for p in products_db if sq in p.name.lower() or sq in (p.sku or "").lower()] if sq else products_db
+            
+            if not filtered_products:
+                ui.label('Không tìm thấy sản phẩm nào!').classes('p-5 text-gray-500 italic text-center w-full mt-4')
                 return
-            for product in products_db:
+            for product in filtered_products:
                 is_out = product.stock_quantity <= 0
-                icon = 'inventory_2'
+                icon_name = 'inventory_2'
                 if hasattr(product, 'sku') and product.sku:
-                    if 'FOO' in product.sku or 'SNC' in product.sku:
-                        icon = 'fastfood'
-                    elif 'DRK' in product.sku:
-                        icon = 'local_cafe'
+                    if 'FOO' in product.sku or 'SNC' in product.sku: icon_name = 'fastfood'
+                    elif 'DRK' in product.sku: icon_name = 'local_cafe'
 
-                card = ui.element('div').classes(f'product-card elevation-1{"  out-of-stock" if is_out else ""}')
+                # Product Card
+                card = ui.column().classes(f'w-[220px] bg-white dark:bg-[#2a2a2c] rounded-[24px] border border-[#ebe7e1] dark:border-gray-800 shadow-sm hover:shadow-md hover:border-primary/30 dark:hover:border-primary/50 hover:-translate-y-1 transition-all cursor-pointer overflow-hidden {"opacity-50 grayscale-[50%]" if is_out else ""}')
                 card.on('click', lambda p=product: add_to_cart(p))
+                
                 with card:
-                    with ui.element('div').classes('product-img'):
-                        ui.html(f'<span class="material-symbols-rounded">{icon}</span>')
-                    with ui.element('div').classes('product-info'):
-                        el('div', product.name, classes='product-name')
-                        el('div', format_currency(product.price), classes='product-price')
-                        stock_cls = 'in-stock' if product.stock_quantity > 0 else 'out-of-stock'
-                        el('div', f'Kho còn: {product.stock_quantity}', classes=f'stock-indicator {stock_cls}')
+                    with ui.row().classes('h-[150px] w-full bg-[#fcfaf7] dark:bg-black/20 items-center justify-center relative'):
+                        ui.icon(icon_name, size='64px').classes('text-[#e6dfd5] dark:text-gray-700')
+                        if is_out:
+                            ui.label('Hết hàng').classes('absolute top-3 right-3 bg-red-500 text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider')
+                    
+                    with ui.column().classes('p-5 flex-1 w-full gap-2 border-t border-gray-50 dark:border-gray-800/50'):
+                        ui.label(product.name).classes('text-[15px] font-semibold text-gray-800 dark:text-gray-100 line-clamp-2 leading-snug')
+                        ui.space()
+                        ui.label(format_currency(product.price)).classes('text-primary font-bold text-lg')
+                        stock_color = 'text-green-600 dark:text-green-400' if product.stock_quantity > 0 else 'text-red-500'
+                        ui.label(f'Kho còn: {product.stock_quantity}').classes(f'text-xs font-semibold {stock_color} opacity-90')
 
         @ui.refreshable
         def render_cart_section():
-            # Cart items
-            with ui.element('div').classes('cart-items'):
+            with ui.column().classes('flex-1 w-full overflow-y-auto px-6'):
                 if len(cart) == 0:
-                    with ui.element('div').classes('empty-cart-msg'):
-                        ui.html('<span class="material-symbols-rounded" style="font-size: 48px; opacity: 0.3;">shopping_basket</span>')
-                        ui.html('<p style="margin-top: 10px;">Chưa chọn sản phẩm nào</p>')
+                    with ui.column().classes('w-full h-full items-center justify-center opacity-40 mt-12'):
+                        ui.icon('shopping_basket', size='48px').classes('text-current mb-3')
+                        ui.label('Chưa chọn sản phẩm nào').classes('font-medium text-[15px]')
                 else:
                     for item in cart:
-                        with ui.element('div').classes('cart-item elevation-1'):
-                            with ui.element('div').classes('item-visual'):
-                                ui.html('<span class="material-symbols-rounded" style="color:#9e9e9e;">receipt_long</span>')
-                            with ui.element('div').classes('item-details'):
-                                el('div', item['name'], classes='item-name')
-                                el('div', format_currency(item['price']), classes='item-price')
-                            with ui.element('div').classes('item-actions'):
-                                minus_btn = el('button', '−', classes='qty-btn')
-                                minus_btn.on('click', lambda pid=item['product_id']: update_quantity(pid, -1))
-                                ui.html(f'<span style="font-weight:700; width: 24px; text-align: center; color: var(--md-text-primary);">{item["quantity"]}</span>')
-                                plus_btn = el('button', '+', classes='qty-btn')
-                                plus_btn.on('click', lambda pid=item['product_id']: update_quantity(pid, 1))
+                        with ui.row().classes('w-full items-center p-3 mb-3 bg-[#fcfaf7] dark:bg-[#1a1a1c] border border-[#f0ebe3] dark:border-gray-800 rounded-2xl'):
+                            with ui.row().classes('w-12 h-12 rounded-xl bg-gray-200/50 dark:bg-black/30 flex items-center justify-center mr-3 shrink-0'):
+                                ui.icon('receipt_long').classes('text-gray-400 dark:text-gray-500')
+                            
+                            with ui.column().classes('flex-1 gap-0.5 justify-center mr-2 w-0'):
+                                ui.label(item['name']).classes('font-semibold text-[14px] text-gray-800 dark:text-gray-200 truncate w-full')
+                                ui.label(format_currency(item['price'])).classes('text-primary font-bold text-[13px]')
+                            
+                            with ui.row().classes('items-center gap-1.5 shrink-0 bg-white dark:bg-[#252527] rounded-full px-1 py-1 shadow-sm border border-gray-100 dark:border-gray-800'):
+                                ui.button(icon='remove', on_click=lambda pid=item['product_id']: update_quantity(pid, -1)).props('flat dense round').classes('w-6 h-6 min-h-0 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800')
+                                ui.label(str(item["quantity"])).classes('font-bold text-[13px] w-5 text-center text-gray-800 dark:text-gray-200')
+                                ui.button(icon='add', on_click=lambda pid=item['product_id']: update_quantity(pid, 1)).props('flat dense round').classes('w-6 h-6 min-h-0 text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800')
 
-            # Cart summary
             subtotal = sum(item['price'] * item['quantity'] for item in cart)
             tax = subtotal * 0.1
             total = subtotal + tax
 
-            with ui.element('div').classes('cart-summary'):
-                with ui.element('div').classes('summary-row'):
+            with ui.column().classes('w-full p-6 bg-white dark:bg-[#2a2a2c] border-t border-[#f0ebe3] dark:border-gray-800 shrink-0'):
+                with ui.row().classes('w-full justify-between items-center mb-3 text-gray-500 dark:text-gray-400 font-medium text-[15px]'):
                     ui.label('Tạm tính')
                     ui.label(format_currency(subtotal))
-                with ui.element('div').classes('summary-row'):
+                with ui.row().classes('w-full justify-between items-center mb-5 text-gray-500 dark:text-gray-400 font-medium text-[15px]'):
                     ui.label('Thuế (10%)')
                     ui.label(format_currency(tax))
-                with ui.element('div').classes('summary-row total-row'):
-                    ui.label('Tổng cộng')
-                    ui.label(format_currency(total)).style('color: var(--md-primary);')
-                checkout_btn = ui.element('button').classes('md-button primary full-width')
-                checkout_btn.on('click', checkout)
-                with checkout_btn:
-                    ui.html('<span class="material-symbols-rounded">credit_card</span>')
-                    ui.html('Xác nhận thanh toán')
+                with ui.column().classes('w-full border-t border-dashed border-gray-200 dark:border-gray-700 pt-5 mb-6'):
+                    with ui.row().classes('w-full justify-between items-center'):
+                        ui.label('Tổng cộng').classes('text-gray-800 dark:text-gray-200 text-lg font-bold')
+                        ui.label(format_currency(total)).classes('text-primary text-2xl font-bold')
+                
+                ui.button('Xác nhận thanh toán', icon='credit_card', on_click=checkout).props('unelevated no-caps').classes('w-full bg-primary text-white font-bold text-[15px] rounded-2xl py-4 shadow-md shadow-primary/20 hover:-translate-y-0.5 transition-transform')
 
         @ui.refreshable
         async def render_inventory_table():
             await load_products_data()
-            with ui.element('div').classes('elevation-1').style('background: white; border-radius: 12px; overflow: hidden;'):
-                with ui.element('table').classes('md-table'):
-                    with ui.element('thead'):
-                        with ui.element('tr'):
-                            el('th', 'Mã SKU')
-                            el('th', 'Tên Sản Phẩm')
-                            el('th', 'Giá Bán')
-                            el('th', 'Tồn Kho')
-                            el('th', 'Trạng Thái')
-                    with ui.element('tbody'):
-                        for item in products_db:
-                            with ui.element('tr'):
-                                el('td', item.sku, style='font-weight: 500;')
-                                el('td', item.name)
-                                el('td', format_currency(item.price))
-                                stock_color = '#d32f2f' if item.stock_quantity < item.min_stock_level else 'inherit'
-                                el('td', str(item.stock_quantity), style=f'font-weight: bold; color: {stock_color};')
-                                with ui.element('td'):
-                                    btn = el('button', 'Nhập Hàng', classes='action-btn')
-                                    btn.on('click', lambda pid=item.id, pname=item.name: restock_product(pid, pname))
+            with ui.column().classes('w-full bg-white dark:bg-[#2a2a2c] rounded-3xl border border-[#f0ebe3] dark:border-gray-800 shadow-sm overflow-hidden flex-1'):
+                
+                # Table Header
+                with ui.row().classes('w-full bg-[#fcfaf7] dark:bg-black/20 p-4 border-b border-[#f0ebe3] dark:border-gray-800 font-semibold text-[14px] text-gray-600 dark:text-gray-400 no-wrap'):
+                    ui.label('Mã SKU').classes('w-[120px]')
+                    ui.label('Tên Sản Phẩm').classes('flex-1')
+                    ui.label('Giá Bán').classes('w-[140px]')
+                    ui.label('Tồn Kho').classes('w-[100px]')
+                    ui.label('Hành động').classes('w-[120px] text-center')
+                
+                # Table Body
+                with ui.column().classes('w-full overflow-y-auto no-wrap'):
+                    for item in products_db:
+                        with ui.row().classes('w-full p-4 items-center border-b border-gray-50 dark:border-gray-800/50 hover:bg-gray-50 dark:hover:bg-gray-800 text-[14px] no-wrap transition-colors'):
+                            ui.label(item.sku).classes('w-[120px] font-semibold text-gray-500 dark:text-gray-400')
+                            ui.label(item.name).classes('flex-1 font-medium text-gray-800 dark:text-gray-200 truncate pr-2')
+                            ui.label(format_currency(item.price)).classes('w-[140px] text-gray-700 dark:text-gray-300')
+                            
+                            stock_color = 'text-red-500' if item.stock_quantity < item.min_stock_level else 'text-gray-800 dark:text-gray-200'
+                            ui.label(str(item.stock_quantity)).classes(f'w-[100px] font-bold {stock_color}')
+                            
+                            with ui.row().classes('w-[120px] justify-center'):
+                                ui.button('Nhập kho', on_click=lambda pid=item.id, pname=item.name: restock_product(pid, pname)).props('flat outline dense no-caps').classes('text-xs font-semibold px-3 py-1 rounded-lg text-primary border border-primary/30 hover:bg-primary/10')
 
         @ui.refreshable
         async def render_invoices_table():
             await load_invoices_data()
-            with ui.element('div').classes('elevation-1').style('background: white; border-radius: 12px; overflow: hidden;'):
-                with ui.element('table').classes('md-table'):
-                    with ui.element('thead'):
-                        with ui.element('tr'):
-                            el('th', 'Mã HD')
-                            el('th', 'Thời Gian Tạo')
-                            el('th', 'Sản Phẩm')
-                            el('th', 'Tổng Tiền')
-                            el('th', 'Trạng Thái')
-                    with ui.element('tbody'):
-                        if not invoices_data:
-                            with ui.element('tr'):
-                                td = ui.element('td').style('text-align: center; padding: 40px; color: #5f6368;')
-                                td._text = 'Chưa có hóa đơn nào'
-                                td.props('colspan="5"')
+            with ui.column().classes('w-full bg-white dark:bg-[#2a2a2c] rounded-3xl border border-[#f0ebe3] dark:border-gray-800 shadow-sm overflow-hidden flex-1'):
+                # Table Header
+                with ui.row().classes('w-full bg-[#fcfaf7] dark:bg-black/20 p-4 border-b border-[#f0ebe3] dark:border-gray-800 font-semibold text-[14px] text-gray-600 dark:text-gray-400 no-wrap'):
+                    ui.label('Mã HĐ').classes('w-[100px]')
+                    ui.label('Thời Gian').classes('w-[200px]')
+                    ui.label('Sản Phẩm').classes('flex-1')
+                    ui.label('Tổng Tiền').classes('w-[150px]')
+                    ui.label('Trạng Thái').classes('w-[120px] text-center')
+
+                # Table Body
+                with ui.column().classes('w-full overflow-y-auto no-wrap'):
+                    if not invoices_data:
+                        ui.label('Chưa có hóa đơn nào').classes('w-full text-center p-12 text-gray-400 font-medium')
+                    else:
                         for order in invoices_data:
                             date_str = order.created_at.strftime('%d/%m/%Y %H:%M:%S') if order.created_at else ''
-                            row = ui.element('tr').style('cursor: pointer;')
+                            row = ui.row().classes('w-full p-4 items-center border-b border-gray-50 dark:border-gray-800/50 text-[14px] no-wrap hover:bg-orange-50/50 dark:hover:bg-gray-800 cursor-pointer transition-colors')
                             row.on('click', lambda o=order: show_invoice_details(o))
+                            
                             with row:
-                                el('td', f'#{order.id}', style='font-weight: 500;')
-                                el('td', date_str, style='color: #5f6368;')
-                                el('td', f'... {len(order.items)} mặt hàng')
-                                el('td', format_currency(order.final_amount), style='font-weight: bold; color: var(--md-primary);')
-                                with ui.element('td'):
-                                    el('span', 'Thành Công', classes='status-chip success')
+                                ui.label(f'#{order.id}').classes('w-[100px] font-bold text-gray-500 dark:text-gray-400')
+                                ui.label(date_str).classes('w-[200px] text-gray-600 dark:text-gray-400')
+                                ui.label(f'... {len(order.items)} mặt hàng').classes('flex-1 font-medium text-gray-800 dark:text-gray-200 pr-2 truncate')
+                                ui.label(format_currency(order.final_amount)).classes('w-[150px] font-bold text-primary')
+                                
+                                with ui.row().classes('w-[120px] justify-center'):
+                                    ui.label('Thành Công').classes('bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 px-3 py-1 rounded-full text-xs font-bold tracking-wide')
 
-        # Helper refresh functions
-        def refresh_products():
-            render_products_grid.refresh()
-
-        def refresh_cart():
-            render_cart_section.refresh()
-
-        def refresh_inventory():
-            render_inventory_table.refresh()
-
-        def refresh_invoices():
-            render_invoices_table.refresh()
+        # Helper refreshes
+        def refresh_products(): render_products_grid.refresh()
+        def refresh_cart(): render_cart_section.refresh()
+        def refresh_inventory(): render_inventory_table.refresh()
+        def refresh_invoices(): render_invoices_table.refresh()
 
         # ========================================
-        # BUILD THE LAYOUT
+        # MAIN LAYOUT OVERHAUL
         # ========================================
-        nav_buttons = []
+        with ui.row().classes('w-full h-screen no-wrap bg-[#fcfbf9] dark:bg-[#1a1a1c] text-gray-800 dark:text-gray-200 font-sans'):
+            
+            # ---- SIDEBAR (Fixed Left) ----
+            with ui.column().classes('w-[280px] h-full bg-white dark:bg-[#252527] border-r border-[#f0ebe3] dark:border-gray-800 shrink-0 z-10 shadow-[2px_0_10px_rgba(0,0,0,0.02)]'):
+                # Header Logo
+                with ui.row().classes('h-[80px] w-full items-center px-6 shrink-0 border-b border-[#f0ebe3] dark:border-gray-800'):
+                    with ui.row().classes('w-10 h-10 rounded-xl bg-orange-50 dark:bg-gray-800 flex items-center justify-center mr-3'):
+                        ui.icon('storefront', size='24px').classes('text-primary')
+                    with ui.column().classes('gap-0'):
+                        ui.label('HoaPhat').classes('text-[17px] font-bold tracking-tight leading-none text-gray-900 dark:text-white')
+                        ui.label('Store Management').classes('text-[12px] font-medium text-gray-500 dark:text-gray-400')
+                
+                # Nav Menu
+                with ui.column().classes('w-full px-4 mt-6 gap-2 flex-1'):
+                    def create_nav(icon, label, tid, default_active=False):
+                        btn = ui.button(icon=icon, text=label).props('flat no-caps align=left')
+                        if default_active:
+                            btn.classes('w-full justify-start py-3 px-4 rounded-xl text-[15px] font-medium transition-colors bg-orange-50/80 text-primary dark:bg-gray-800 dark:text-gray-200')
+                        else:
+                            btn.classes('w-full justify-start py-3 px-4 rounded-xl text-[15px] font-medium transition-colors text-gray-600 dark:text-gray-400 hover:bg-orange-50/50 dark:hover:bg-gray-800/50')
+                        btn.on('click', lambda: switch_tab(tid))
+                        nav_buttons.append({'id': tid, 'element': btn})
+                        
+                    create_nav('point_of_sale', 'Bán Hàng (POS)', 'pos', True)
+                    create_nav('inventory_2', 'Tồn Kho', 'inventory')
+                    create_nav('receipt_long', 'Hóa Đơn', 'invoices')
+                
+                # Footer profile / setting
+                with ui.column().classes('w-full p-6 border-t border-[#f0ebe3] dark:border-gray-800 shrink-0 gap-4'):
+                    with ui.row().classes('items-center w-full gap-3 mt-2'):
+                        ui.label('AD').classes('w-10 h-10 rounded-full bg-gray-900 dark:bg-gray-700 text-white flex items-center justify-center font-bold text-sm tracking-widest shrink-0')
+                        with ui.column().classes('gap-0 flex-1 w-0'):
+                            ui.label('Admin').classes('font-bold text-[14px] leading-tight text-gray-900 dark:text-white truncate w-full')
+                            ui.label('admin@hoaphat.com').classes('text-[11px] font-medium text-gray-500 truncate w-full')
 
-        with ui.element('div').classes('app-container'):
-            # ---- SIDEBAR ----
-            with ui.element('aside').classes('sidebar elevation-2'):
-                with ui.element('div').classes('sidebar-header'):
-                    ui.html('<span class="material-symbols-rounded logo-icon">storefront</span>')
-                    ui.html('<h2 style="font-size: 16px; line-height: 1.2;">HoaPhat Store<br>Management</h2>')
-                with ui.element('nav').classes('sidebar-nav'):
-                    # POS tab
-                    pos_btn = ui.element('button').classes('nav-item active')
-                    pos_btn.on('click', lambda: switch_tab('pos'))
-                    with pos_btn:
-                        ui.html('<span class="material-symbols-rounded">point_of_sale</span>')
-                        ui.html('Bán Hàng (POS)')
-                    nav_buttons.append({'id': 'pos', 'element': pos_btn})
+            # ---- MAIN CONTENT AREA ----
+            with ui.column().classes('flex-1 h-full overflow-hidden relative'):
+                
+                # App Bar (Top)
+                with ui.row().classes('h-[80px] w-full items-center justify-between px-8 shrink-0 bg-transparent'):
+                    ui.space() # Placeholder for maybe breadcrumbs/title
+                    with ui.row().classes('bg-white dark:bg-[#252527] border border-[#f0ebe3] dark:border-gray-800 rounded-full py-2 px-5 items-center w-[400px] shadow-sm'):
+                        ui.icon('search').classes('text-gray-400')
+                        ui.input(placeholder='Tìm kiếm mặt hàng, báo cáo...', on_change=lambda _: refresh_products()).bind_value(search_query, 'text').props('borderless dense clearable debounce="400"').classes('ml-3 flex-1 text-[14px]')
 
-                    # Inventory tab
-                    inv_btn = ui.element('button').classes('nav-item')
-                    inv_btn.on('click', lambda: switch_tab('inventory'))
-                    with inv_btn:
-                        ui.html('<span class="material-symbols-rounded">inventory_2</span>')
-                        ui.html('Tồn Kho')
-                    nav_buttons.append({'id': 'inventory', 'element': inv_btn})
+                # View Container
+                with ui.column().classes('flex-1 w-full overflow-hidden relative'):
+                    
+                    # --- POS VIEW ---
+                    pos_view_ref = ui.element('div').classes('w-full h-full p-8 gap-8 grid grid-cols-[1fr_390px]')
+                    with pos_view_ref:
+                        # Left List Products
+                        with ui.column().classes('w-full h-full overflow-hidden'):
+                            ui.label('Danh sách Sản Phẩm').classes('text-2xl font-bold mb-5 dark:text-white')
+                            
+                            with ui.row().classes('gap-3 mb-6 no-wrap'):
+                                for idx, cat in enumerate(['Tất cả']):
+                                    btn = ui.button(cat).props('unelevated no-caps').classes('rounded-full px-6 py-2 font-medium transition-colors border')
+                                    if idx == 0:
+                                        btn.classes('bg-gray-900 dark:bg-gray-200 text-white dark:text-gray-900 border-transparent')
+                                    else:
+                                        btn.classes('bg-white dark:bg-transparent text-gray-600 dark:text-gray-400 border-[#f0ebe3] dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800')
 
-                    # Invoices tab
-                    invoices_btn = ui.element('button').classes('nav-item')
-                    invoices_btn.on('click', lambda: switch_tab('invoices'))
-                    with invoices_btn:
-                        ui.html('<span class="material-symbols-rounded">receipt_long</span>')
-                        ui.html('Hóa Đơn')
-                    nav_buttons.append({'id': 'invoices', 'element': invoices_btn})
-
-            # ---- MAIN CONTENT ----
-            with ui.element('main').classes('main-content'):
-                # App Bar
-                with ui.element('header').classes('app-bar elevation-1'):
-                    with ui.element('div').classes('search-bar'):
-                        ui.input(placeholder='Tìm kiếm mặt hàng, hóa đơn...').props('rounded standout dense borderless').classes('full-width').style('font-size: 15px;')\
-                            .add_slot('prepend', '<span class="material-symbols-rounded" style="color: var(--md-text-secondary)">search</span>')
-                    with ui.element('div').classes('user-profile'):
-                        ui.html('<span class="material-symbols-rounded" style="cursor: pointer; color:#5f6368;">notifications</span>')
-                        ui.html('<div class="avatar elevation-1">AD</div>')
-                        ui.html('<span style="font-weight: 500;">Admin</span>')
-
-                # ---- POS VIEW ----
-                pos_view_ref = ui.element('div').classes('view-section active').style('display: block;')
-                with pos_view_ref:
-                    with ui.element('div').classes('pos-layout'):
-                        # Products area
-                        with ui.element('div').classes('products-area'):
-                            ui.html('<h2 class="section-title">Danh mục Sản phẩm</h2>')
-                            with ui.element('div').classes('category-tabs'):
-                                ui.html('<button class="md-chip active">Tất cả</button>')
-                                ui.html('<button class="md-chip">Thực phẩm</button>')
-                                ui.html('<button class="md-chip">Đồ gia dụng</button>')
-                            with ui.element('div').classes('products-grid'):
+                            with ui.row().classes('w-full flex-1 overflow-y-auto content-start gap-[20px] pb-12 flex-wrap min-h-0'):
                                 render_products_grid()
-
-                        # Cart sidebar
-                        with ui.element('div').classes('cart-sidebar elevation-3'):
-                            with ui.element('div').classes('cart-header'):
-                                ui.html('<h2>Giỏ hàng hiện tại</h2>')
-                                delete_btn = ui.element('button').classes('btn-icon')
-                                delete_btn.on('click', clear_cart_action)
-                                with delete_btn:
-                                    ui.html('<span class="material-symbols-rounded">delete</span>')
+                                
+                        # Right Cart Sidebar
+                        with ui.column().classes('w-full h-full bg-white dark:bg-[#2a2a2c] rounded-3xl border border-[#f0ebe3] dark:border-gray-800 shadow-sm flex-col overflow-hidden'):
+                            with ui.row().classes('w-full p-6 items-center justify-between border-b border-[#f0ebe3] dark:border-gray-800 shrink-0'):
+                                ui.label('Giỏ hàng hiện tại').classes('text-[18px] font-bold dark:text-white')
+                                ui.button(icon='delete_outline', on_click=clear_cart_action).props('flat round dense').classes('text-gray-400 hover:text-red-500 transition-colors bg-gray-50 hover:bg-red-50 dark:bg-gray-800 dark:hover:bg-red-900/30')
+                            
                             render_cart_section()
 
-                # ---- INVENTORY VIEW ----
-                inv_view_ref = ui.element('div').classes('view-section').style('display: none; padding: 24px;')
-                with inv_view_ref:
-                    with ui.element('div').style('display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;'):
-                        ui.html('<h1 class="page-title" style="margin-bottom: 0;">Quản lý Tồn Kho</h1>')
-                        with ui.element('div').classes('header-actions'):
-                            add_btn = ui.element('button').classes('header-btn secondary')
-                            add_btn.on('click', open_add_product_modal)
-                            with add_btn:
-                                ui.html('<span class="material-symbols-rounded">add</span>')
-                                ui.html('Thêm Mới')
-                            refresh_inv_btn = ui.element('button').classes('header-btn primary')
-                            refresh_inv_btn.on('click', lambda: (refresh_inventory(), ui.notify('Đã làm mới Tồn Kho!', color='positive')))
-                            with refresh_inv_btn:
-                                ui.html('<span class="material-symbols-rounded">refresh</span>')
-                                ui.html('Làm mới')
-                    render_inventory_table()
+                    # --- INVENTORY VIEW ---
+                    inv_view_ref = ui.column().classes('w-full h-full p-8 flex flex-col hidden')
+                    with inv_view_ref:
+                        with ui.row().classes('w-full justify-between items-center mb-6 shrink-0'):
+                            ui.label('Quản lý Tồn Kho').classes('text-3xl font-bold dark:text-white')
+                            with ui.row().classes('gap-3'):
+                                btn_add = ui.button('Thêm Mới', icon='add', on_click=open_add_product_modal).props('unelevated no-caps').classes('bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-semibold rounded-xl px-5 py-2.5 shadow-sm')
+                                btn_ref = ui.button('Làm Mới', icon='refresh', on_click=lambda: (refresh_inventory(), ui.notify('Đã làm mới!', type='info'))).props('outline no-caps').classes('bg-white dark:bg-transparent border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-semibold rounded-xl px-5 py-2.5')
+                        
+                        render_inventory_table()
 
-                # ---- INVOICES VIEW ----
-                invoices_view_ref = ui.element('div').classes('view-section').style('display: none; padding: 24px;')
-                with invoices_view_ref:
-                    with ui.element('div').style('display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;'):
-                        ui.html('<h1 class="page-title" style="margin-bottom: 0;">Lịch sử Hóa Đơn</h1>')
-                        with ui.element('div').classes('header-actions'):
-                            clear_inv_btn = ui.element('button').classes('header-btn danger')
-                            clear_inv_btn.on('click', clear_all_invoices)
-                            with clear_inv_btn:
-                                ui.html('<span class="material-symbols-rounded">delete_sweep</span>')
-                                ui.html('Xóa tất cả')
-                            refresh_invoices_btn = ui.element('button').classes('header-btn primary')
-                            refresh_invoices_btn.on('click', lambda: (refresh_invoices(), ui.notify('Đã làm mới Lịch Sử Hóa Đơn!', color='positive')))
-                            with refresh_invoices_btn:
-                                ui.html('<span class="material-symbols-rounded">refresh</span>')
-                                ui.html('Làm mới')
-                    render_invoices_table()
+                    # --- INVOICES VIEW ---
+                    invoices_view_ref = ui.column().classes('w-full h-full p-8 flex flex-col hidden')
+                    with invoices_view_ref:
+                        with ui.row().classes('w-full justify-between items-center mb-6 shrink-0'):
+                            ui.label('Lịch sử Hóa Đơn').classes('text-3xl font-bold dark:text-white')
+                            with ui.row().classes('gap-3'):
+                                btn_clr = ui.button('Xóa Tất Cả', icon='delete_sweep', on_click=clear_all_invoices).props('outline no-caps').classes('border border-red-200 text-red-500 bg-red-50 dark:bg-red-900/20 dark:border-red-900/50 font-semibold rounded-xl px-4 py-2.5')
+                                btn_ref2 = ui.button('Làm Mới', icon='refresh', on_click=lambda: (refresh_invoices(), ui.notify('Đã làm mới!', type='info'))).props('unelevated no-caps').classes('bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-semibold rounded-xl px-5 py-2.5 shadow-sm')
+
+                        render_invoices_table()
+
+        # Khởi chạy ban đầu để load dữ liệu sản phẩm
+        ui.timer(0.1, lambda: switch_tab('pos'), once=True)

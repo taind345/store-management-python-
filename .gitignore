@@ -1,0 +1,23 @@
+# Môi trường ảo Python
+venv/
+env/
+.env
+
+# Cache và Compiled Python code
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# File cơ sở dữ liệu nội bộ (Nếu dùng SQLite)
+*.sqlite
+*.db
+
+# Các file tạm, log...
+*.log
+diff_models.txt
+
+# Thư mục IDE/Editor
+.vscode/
+.idea/
+.DS_Store
