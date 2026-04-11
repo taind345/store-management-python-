@@ -464,7 +464,7 @@ def setup_pages():
                         btn.on('click', lambda: switch_tab(tid))
                         nav_buttons.append({'id': tid, 'element': btn})
                         
-                    create_nav('point_of_sale', 'Bán Hàng (POS)', 'pos', True)
+                    create_nav('point_of_sale', 'Bán Hàng', 'pos', True)
                     create_nav('inventory_2', 'Tồn Kho', 'inventory')
                     create_nav('receipt_long', 'Hóa Đơn', 'invoices')
                 

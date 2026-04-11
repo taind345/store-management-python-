@@ -5,8 +5,6 @@ from .database import Base
 
 class RoleEnum(str, enum.Enum):
     ADMIN = "Admin"
-    CASHIER = "Cashier"
-    INVENTORY = "Inventory"
 
 class TierEnum(str, enum.Enum):
     STANDARD = "Standard"
@@ -31,7 +29,7 @@ class User(Base):
     username = Column(String, unique=True, index=True, nullable=False)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
-    role = Column(Enum(RoleEnum), default=RoleEnum.CASHIER, nullable=False)
+    role = Column(Enum(RoleEnum), default=RoleEnum.ADMIN, nullable=False)
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
