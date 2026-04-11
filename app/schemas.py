@@ -23,6 +23,10 @@ class ProductCreate(BaseModel):
     price: Decimal = Field(..., gt=0, description="Giá bán")
     stock_quantity: int = Field(default=0, ge=0, description="Số lượng tồn kho ban đầu")
 
+class ProductUpdate(BaseModel):
+    name: Optional[str] = Field(None, description="Tên mặt hàng cập nhật")
+    price: Optional[Decimal] = Field(None, gt=0, description="Giá bán cập nhật")
+
 class ProductResponse(ProductBase):
     id: int
     model_config = ConfigDict(from_attributes=True)

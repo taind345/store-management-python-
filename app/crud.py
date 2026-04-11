@@ -197,3 +197,42 @@ async def create_product(db: AsyncSession, product_in: schemas.ProductCreate) ->
     except Exception as e:
         await db.rollback()
         raise HTTPException(status_code=500, detail=f"Lỗi lưu CSDL thêm sản phẩm: {str(e)}")
+
+async def update_product(db: AsyncSession, product_id: int, product_in: schemas.ProductUpdate) -> models.Product:
+    stmt = select(models.Product).where(models.Product.id == product_id)
+    res = await db.execute(stmt)
+    product = res.scalar_one_or_none()
+    
+    if not product:
+        raise HTTPException(status_code=404, detail=f"Sản phẩm ID {product_id} không tồn tại.")
+    
+    # Cập nhật các trường có giá trị truyền vào
+    update_data = product_in.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(product, field, value)
+        
+    try:
+        await db.commit()
+        await db.refresh(product)
+        return product
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Lỗi cập nhật sản phẩm: {str(e)}")
+
+async def delete_product(db: AsyncSession, product_id: int) -> bool:
+    stmt = select(models.Product).where(models.Product.id == product_id)
+    res = await db.execute(stmt)
+    product = res.scalar_one_or_none()
+    
+    if not product:
+        raise HTTPException(status_code=404, detail=f"Sản phẩm ID {product_id} không tồn tại.")
+        
+    # Soft delete: Đặt is_active = False
+    product.is_active = False
+    
+    try:
+        await db.commit()
+        return True
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=500, detail=f"Lỗi khi xóa sản phẩm: {str(e)}")

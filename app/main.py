@@ -81,6 +81,24 @@ async def restock_inventory_endpoint(
     """Nhập thêm số lượng tồn kho cho mặt hàng"""
     return await crud.restock_inventory(db=db, product_id=product_id, quantity=restock_data.quantity, user_id=current_user_id)
 
+@app.patch("/products/{product_id}", response_model=schemas.ProductResponse, tags=["Inventory"])
+async def update_product_endpoint(
+    product_id: int,
+    product_in: schemas.ProductUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """Cập nhật thông tin mặt hàng (Tên, Giá)"""
+    return await crud.update_product(db=db, product_id=product_id, product_in=product_in)
+
+@app.delete("/products/{product_id}", tags=["Inventory"])
+async def delete_product_endpoint(
+    product_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """Xóa mặt hàng (Soft-delete)"""
+    await crud.delete_product(db=db, product_id=product_id)
+    return {"message": "Đã xóa mặt hàng thành công."}
+
 
 # NOTE: Frontend hiện được serve bởi NiceGUI (xem frontend_python/ui_app.py)
 # Chạy ứng dụng bằng: python run.py

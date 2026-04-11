@@ -228,6 +228,66 @@ def setup_pages():
                     ui.button('Đăng Ký', on_click=submit_product).props('unelevated no-caps').classes('bg-primary text-white font-semibold rounded-xl px-8')
             dialog.open()
 
+        async def open_edit_product_modal(product):
+            with ui.dialog() as dialog, ui.card().classes('rounded-3xl p-0 bg-white dark:bg-[#252527] w-[500px] border border-gray-100 dark:border-gray-800 shadow-xl'):
+                with ui.row().classes('w-full p-6 border-b border-gray-100 dark:border-gray-800 justify-between items-center'):
+                    ui.label(f'Chỉnh sửa: {product.sku}').classes('text-xl font-bold dark:text-gray-100')
+                    ui.button(icon='close', on_click=dialog.close).props('flat round dense').classes('text-gray-400')
+                
+                with ui.column().classes('w-full p-6 gap-5 bg-[#fafafa]/50 dark:bg-transparent'):
+                    with ui.column().classes('w-full gap-1'):
+                        ui.label('Tên Mặt Hàng').classes('font-medium text-gray-500 dark:text-gray-400 ml-1 text-sm')
+                        name_input = ui.input(value=product.name).props('outlined').classes('w-full')
+                    with ui.column().classes('w-full gap-1'):
+                        ui.label('Giá Bán (VNĐ)').classes('font-medium text-gray-500 dark:text-gray-400 ml-1 text-sm')
+                        price_input = ui.number(value=float(product.price)).props('outlined').classes('w-full')
+                
+                with ui.row().classes('w-full p-6 border-t border-gray-100 dark:border-gray-800 justify-between items-center bg-gray-50/50 dark:bg-black/20'):
+                    async def delete_item():
+                        with ui.dialog() as confirm_dialog, ui.card().classes('p-6 rounded-2xl'):
+                            ui.label('⚠️ Xác nhận xóa?').classes('text-lg font-bold text-red-500 mb-2')
+                            ui.label(f'Bạn có chắc muốn xóa mặt hàng "{product.name}"?').classes('mb-4')
+                            with ui.row().classes('justify-end gap-2 w-full'):
+                                ui.button('Hủy', on_click=confirm_dialog.close).props('flat')
+                                async def do_delete():
+                                    try:
+                                        async with AsyncSessionLocal() as db:
+                                            await crud.delete_product(db=db, product_id=product.id)
+                                        ui.notify(f'Đã xóa {product.name}', type='warning')
+                                        confirm_dialog.close()
+                                        dialog.close()
+                                        refresh_inventory()
+                                        refresh_products()
+                                    except Exception as e:
+                                        ui.notify(f'Lỗi: {str(e)}', type='negative')
+                                ui.button('Xác nhận Xóa', on_click=do_delete).props('unelevated color=red')
+                        confirm_dialog.open()
+
+                    ui.button('Xóa mặt hàng', icon='delete', on_click=delete_item).props('flat text-color="red-5" no-caps').classes('font-medium border border-red-100 hover:bg-red-50 rounded-xl')
+                    
+                    with ui.row().classes('gap-3'):
+                        ui.button('Hủy', on_click=dialog.close).props('flat text-color="grey-6" no-caps').classes('font-medium')
+                        
+                        async def update_item():
+                            name = name_input.value.strip() if name_input.value else ''
+                            price = price_input.value
+                            if not name or price is None:
+                                ui.notify('Vui lòng điền đầy đủ thông tin!', type='warning')
+                                return
+                            try:
+                                product_update = schemas.ProductUpdate(name=name, price=Decimal(str(price)))
+                                async with AsyncSessionLocal() as db:
+                                    await crud.update_product(db=db, product_id=product.id, product_in=product_update)
+                                ui.notify(f'Cập nhật thành công {name}!', type='positive')
+                                dialog.close()
+                                refresh_inventory()
+                                refresh_products()
+                            except Exception as e:
+                                ui.notify(f'Lỗi: {getattr(e, "detail", str(e))}', type='negative')
+                                
+                        ui.button('Lưu thay đổi', on_click=update_item).props('unelevated no-caps').classes('bg-primary text-white font-semibold rounded-xl px-6')
+            dialog.open()
+
         # ========================================
         # INVOICES ACTIONS & MODALS
         # ========================================
@@ -398,8 +458,9 @@ def setup_pages():
                             stock_color = 'text-red-500' if item.stock_quantity < item.min_stock_level else 'text-gray-800 dark:text-gray-200'
                             ui.label(str(item.stock_quantity)).classes(f'w-[100px] font-bold {stock_color}')
                             
-                            with ui.row().classes('w-[120px] justify-center'):
-                                ui.button('Nhập kho', on_click=lambda pid=item.id, pname=item.name: restock_product(pid, pname)).props('flat outline dense no-caps').classes('text-xs font-semibold px-3 py-1 rounded-lg text-primary border border-primary/30 hover:bg-primary/10')
+                            with ui.row().classes('w-[120px] justify-center gap-2'):
+                                ui.button(icon='edit', on_click=lambda p=item: open_edit_product_modal(p)).props('flat round dense').classes('text-gray-400 hover:text-primary')
+                                ui.button(icon='add_box', on_click=lambda pid=item.id, pname=item.name: restock_product(pid, pname)).props('flat round dense').classes('text-primary hover:bg-primary/10')
 
         @ui.refreshable
         async def render_invoices_table():
