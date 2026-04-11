@@ -1,17 +1,12 @@
-import enum
-
-from sqlalchemy import (Boolean, Column, DateTime, Enum, ForeignKey, Integer,
-                        Numeric, String, func)
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, Numeric, DateTime, func, Enum
 from sqlalchemy.orm import relationship
-
+import enum
 from .database import Base
-
 
 class RoleEnum(str, enum.Enum):
     ADMIN = "Admin"
     CASHIER = "Cashier"
     INVENTORY = "Inventory"
-
 
 class TierEnum(str, enum.Enum):
     STANDARD = "Standard"
@@ -19,18 +14,15 @@ class TierEnum(str, enum.Enum):
     GOLD = "Gold"
     PLATINUM = "Platinum"
 
-
 class OrderStatusEnum(str, enum.Enum):
     PENDING = "Pending"
     PROCESSING = "Processing"
     COMPLETED = "Completed"
     CANCELLED = "Cancelled"
 
-
 class TransactionTypeEnum(str, enum.Enum):
     IN = "IN"
     OUT = "OUT"
-
 
 class User(Base):
     __tablename__ = "users"
@@ -46,7 +38,6 @@ class User(Base):
     orders = relationship("Order", back_populates="creator")
     inventory_logs = relationship("InventoryLog", back_populates="creator")
 
-
 class Customer(Base):
     __tablename__ = "customers"
 
@@ -60,7 +51,6 @@ class Customer(Base):
 
     orders = relationship("Order", back_populates="customer")
 
-
 class Category(Base):
     __tablename__ = "categories"
 
@@ -69,7 +59,6 @@ class Category(Base):
     description = Column(String, nullable=True)
 
     products = relationship("Product", back_populates="category")
-
 
 class Product(Base):
     __tablename__ = "products"
@@ -87,16 +76,13 @@ class Product(Base):
     order_items = relationship("OrderItem", back_populates="product")
     inventory_logs = relationship("InventoryLog", back_populates="product")
 
-
 class Order(Base):
     __tablename__ = "orders"
 
     id = Column(Integer, primary_key=True, index=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    status = Column(
-        Enum(OrderStatusEnum), default=OrderStatusEnum.PENDING, nullable=False
-    )
+    status = Column(Enum(OrderStatusEnum), default=OrderStatusEnum.PENDING, nullable=False)
     total_amount = Column(Numeric(12, 2), default=0.0)
     tax = Column(Numeric(12, 2), default=0.0)
     discount = Column(Numeric(12, 2), default=0.0)
@@ -106,10 +92,7 @@ class Order(Base):
 
     customer = relationship("Customer", back_populates="orders")
     creator = relationship("User", back_populates="orders")
-    items = relationship(
-        "OrderItem", back_populates="order", cascade="all, delete-orphan"
-    )
-
+    items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
 
 class OrderItem(Base):
     __tablename__ = "order_items"
@@ -123,7 +106,6 @@ class OrderItem(Base):
 
     order = relationship("Order", back_populates="items")
     product = relationship("Product", back_populates="order_items")
-
 
 class InventoryLog(Base):
     __tablename__ = "inventory_logs"
