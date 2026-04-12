@@ -72,9 +72,59 @@ Khi bạn muốn chạy lại hệ thống vào lần sau:
 
 ---
 
-## 6. Cấu trúc thư mục rút gọn
+## 6. Mô tả Hệ thống (System Description)
 
-- `app/`: Chứa mã nguồn Backend (FastAPI, CRUD, Database).
-- `frontend_python/`: Chứa mã nguồn Giao diện (NiceGUI UI).
-- `run.py`: File thực thi chính của toàn bộ hệ thống.
-- `requirements.txt`: Danh sách các thư viện Python cần thiết.
+Hệ thống được thiết kế theo kiến trúc tách biệt giữa **Core Logic (Backend)** và **User Interface (Frontend)**, tất cả đều được viết bằng ngôn ngữ Python.
+
+### 6.1. Cấu trúc Dự án (Project Structure)
+
+```text
+banhang/
+├── app/                      # Backend Logic (FastAPI)
+│   ├── crud.py               # Thao tác CSDL (Create, Read, Update, Delete)
+│   ├── database.py           # Kết nối PostgreSQL (SQLAlchemy Async)
+│   ├── main.py               # Định nghĩa các API Endpoints
+│   ├── models.py             # Khai báo cấu trúc bảng CSDL (ORM)
+│   └── schemas.py            # Định nghĩa kiểu dữ liệu Input/Output (Pydantic)
+├── frontend_python/          # Frontend Logic (NiceGUI)
+│   └── ui_app.py             # Giao diện người dùng & Logic xử lý UI
+├── run.py                    # Script khởi chạy đồng bộ Backend & Frontend
+├── seed.py                   # Tạo dữ liệu mẫu ban đầu cho hệ thống
+├── reset_db.py               # Xóa và khởi tạo lại toàn bộ Cơ sở dữ liệu
+├── fix_db_sequence.py        # Sửa lỗi nhảy ID (Serial Sequence) trong DB
+├── requirements.txt          # Danh sách thư viện phụ thuộc
+└── README.md                 # Tài liệu hướng dẫn dự án
+```
+
+### 6.2. Các Thành phần và Hàm Chức năng Chính
+
+#### 1. Backend API (Thư mục `app/`)
+Đây là bộ não của hệ thống, xử lý các phép toán và lưu trữ dữ liệu thông qua cơ chế bất đồng bộ (**Async/Await**).
+- **`models.py`**: Định nghĩa cấu trúc Schema trong PostgreSQL. 
+    - Bao gồm các bảng: `Category`, `Product`, `Order`, `OrderItem`, và `InventoryLog` (để truy vết lịch sử nhập xuất).
+    - Sử dụng các mối quan hệ `relationship` (One-to-Many) giữa Order và OrderItem để quản lý chi tiết đơn hàng.
+- **`crud.py` (Xử lý nghiệp vụ chính)**:
+    - **`create_order`**: Hàm phức tạp nhất. Nó thực hiện:
+        1. Sử dụng **Pessimistic Locking** (`with_for_update`) để khóa các dòng sản phẩm trong DB, ngăn chặn lỗi "bán vượt mức tồn kho" khi 2 nhân viên cùng nhấn thanh toán 1 sản phẩm cuối cùng đồng thời.
+        2. Tự động tính toán Thuế (Tax), Giảm giá (Discount) và Tổng tiền cuối cùng.
+        3. Ghi nhận lịch sử vào bảng `InventoryLog` để quản trị viên có thể kiểm tra lại sau này.
+    - **`get_inventory` & `get_invoices`**: Truy vấn bất đồng bộ sử dụng `selectinload` để tải dữ liệu liên quan (Eager Loading), giúp tối ưu hóa hiệu năng (tránh lỗi N+1 Query).
+    - **`restock_inventory`**: Xử lý nhập hàng, cập nhật số lượng tồn kho và lưu vết người thực hiện.
+- **`schemas.py`**: Sử dụng `Pydantic` để thực hiện **Data Validation**. Đảm bảo dữ liệu đầu vào (ví dụ: giá cả phải là số dương) luôn chính xác trước khi đưa vào Database.
+
+#### 2. Frontend UI (Thư mục `frontend_python/`)
+Xây dựng giao diện Single-Page Application (SPA) hiện đại với **NiceGUI** và **Tailwind CSS**.
+- **`ui_app.py` (Quản lý trạng thái và giao diện)**:
+    - **State Management**: Sử dụng các biến `nonlocal` (như `cart`, `products_db`) để quản lý trạng thái ứng dụng ngay tại phía Client.
+    - **`@ui.refreshable`**: Đây là kỹ thuật cốt lõi. Khi dữ liệu thay đổi (như thêm hàng vào giỏ), chỉ phần giao diện liên quan (`render_cart_section`) được cập nhật lại mà không cần tải lại toàn bộ trang web.
+    - **Chức năng POS (Bán hàng)**:
+        - `add_to_cart`: Kiểm tra tồn kho thời gian thực trước khi cho phép thêm măt hàng.
+        - `search_query`: Tích hợp `debounce` để tìm kiếm sản phẩm mượt mà, chỉ gửi yêu cầu sau khi người dùng dừng gõ 400ms.
+    - **Hệ thống Dialog & Modal**:
+        - Sử dụng `ui.dialog` để tạo các form nhập liệu chuyên nghiệp (Thêm sản phẩm, Nhập hàng, Chỉnh sửa thông tin) với thiết kế bo góc, đổ bóng theo phong cách hiện đại.
+    - **Thiết kế Aesthetic**: Sử dụng tông màu kem/đất (Cream/Earth Tones), font chữ Inter và Material Symbols để tạo cảm giác cao cấp, nhẹ nhàng.
+
+#### 3. Scripts Tiện ích
+- **`run.py`**: Sử dụng `multiprocessing` hoặc `threading` để khởi động server Backend và UI cùng lúc.
+- **`seed.py`**: Tự động nạp vào Database một danh sách sản phẩm mẫu để người dùng có thể test hệ thống ngay lập tức.
+- **`reset_db.py` / `fix_db_sequence.py`**: Các công cụ hỗ trợ bảo trì Database trong quá trình phát triển.
